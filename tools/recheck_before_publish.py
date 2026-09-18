@@ -87,6 +87,39 @@ def main():
     check("10050 就是第 15 注判死那条(Digest,受影响面小),只当判定表一行",
           any(r["cve"] == "CVE-2026-10050" for r in rows), "别把它当主卖点")
 
+    print("\n【主张 ⑤】19203(2332 同族续作,本轮新增):官方叫升的老线版本 Central 404,"
+          "而全局库(Dependabot 用)拿不到区间")
+    # 5a 独立再查一次全局 advisory(不复用 collect)—— 证明 Dependabot 报不出「升到哪」
+    import json as _json
+    import urllib.request as _u
+    _g = _json.load(_u.urlopen(_u.Request(
+        "https://api.github.com/advisories?cve_id=CVE-2026-19203",
+        headers={"User-Agent": "jetty-line-check-recheck/0.2"})))
+    check("19203 全局 advisory 的 vulnerabilities 仍为空(Dependabot 给不出版本区间)",
+          bool(_g) and not _g[0].get("vulnerabilities"),
+          "🔴 全局库一旦补上区间,文案「Dependabot 说不清升到哪」要改")
+    # 5b 9.4/10/11 官方点名版本 Central 404(核心信息差)
+    for line, fp in (("9.4", "9.4.64"), ("10.0", "10.0.32"), ("11.0", "11.0.32")):
+        rr = rows_for("CVE-2026-19203", line)
+        check("19203 %s 线官方点名 %s,Central 仍 404" % (line, fp),
+              bool(rr) and rr[0]["firstPatched"] == fp
+              and probe_central("org.eclipse.jetty", "jetty-http", fp) is False,
+              "实际 fp=%s" % (rr[0]["firstPatched"] if rr else "缺行"))
+    # 5c 9.4 线上界=9.4.63(后台原话搜的就是这个版本)
+    rr94 = rows_for("CVE-2026-19203", "9.4")
+    check("19203 jetty-http 9.4 线上界仍是 9.4.63(后台原话搜的版本)",
+          bool(rr94) and rr94[0]["vulnUpper"] == "9.4.63")
+    # 5d 12.x 阳性对照:官方点名版本在 Central(证明「老线 404」不是网络坏了)
+    for line, fp in (("12.0", "12.0.38"), ("12.1", "12.1.12")):
+        rr = rows_for("CVE-2026-19203", line)
+        check("阳性对照:19203 %s 线修复版 %s 在 Central 上(200)" % (line, fp),
+              bool(rr) and probe_central("org.eclipse.jetty", "jetty-http", rr[0]["firstPatched"]) is True)
+    # 5e 12.1 线默认 RFC9110 不受影响,判定表必须带 condition(防对默认用户误报)
+    rr121 = rows_for("CVE-2026-19203", "12.1")
+    check("19203 12.1 线带默认路径 condition(默认 RFC9110 不受影响,防误报默认用户)",
+          bool(rr121) and rr121[0].get("condition"))
+    check("19203 是 high", cve_meta["CVE-2026-19203"]["severity"] == "high")
+
     print("\n" + "=" * 72)
     if fails:
         print("🔴 %d 条不过 —— **别发,先改文案或重生成判定表**:" % len(fails))

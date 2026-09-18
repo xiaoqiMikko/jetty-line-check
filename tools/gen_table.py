@@ -50,16 +50,31 @@ for _s in (sys.stdout, sys.stderr):
 
 UA = {"User-Agent": "jetty-line-check/0.1 (+https://github.com/xiaoqiMikko/jetty-line-check)"}
 
-# 五条 CVE → GHSA。主打是 CVE-2026-2332(jetty-http chunked 走私,high)。
+# 六条 CVE → GHSA。主打是 CVE-2026-2332(jetty-http chunked 走私,high)。
+# 🔴 CVE-2026-19203(2026-09-17 新发)是 2332 的同族续作(LF EXT.TERM 走私)。
+#    ☠️ 它的**全局** advisory(GHSA-p2j5-5566-vpv9)vulnerabilities 为空、first_patched 为 null ——
+#    区间与修复版只在**仓库级** advisory(GHSA-xc35-c22g-239h)里,用 `patched_versions` 键(不是 first_patched_version)。
+#    → collect() 对全局 vulns 为空的 CVE 自动回退到仓库级源(REPO_ADVISORY_SRC)。
 CVES = [
-    ("CVE-2026-2332", "GHSA-355h-qmc2-wpwf"),   # jetty-http 走私 high —— 主打
+    ("CVE-2026-2332", "GHSA-355h-qmc2-wpwf"),   # jetty-http CRLF-quoted 走私 high —— 主打(元老)
+    ("CVE-2026-19203", "GHSA-p2j5-5566-vpv9"),  # jetty-http LF EXT.TERM 走私 high —— 2332 同族续作(09-17)
     ("CVE-2026-5795", "GHSA-r7p8-xq5m-436c"),   # jaspi ThreadLocal 未清 high
     ("CVE-2026-6790", "GHSA-7p3p-8qv8-m2vh"),   # jetty-server HTTP/2·3 Host 混淆 medium
     ("CVE-2026-10050", "GHSA-2fvj-hgj9-j2gr"),  # jetty-security Digest ISO-8859-1 high(v4)
     ("CVE-2025-11143", "GHSA-wjpw-4j6x-6rwh"),  # jetty-http URI 解析差异 low
 ]
 MAIN_CVE = "CVE-2026-2332"
+# 全局 advisory 的 vulnerabilities 为空时,从这个仓库级源补区间(键名 patched_versions,不是 first_patched_version)。
+REPO_ADVISORY_SRC = "jetty/jetty.project"
 SENTINEL = ("org.eclipse.jetty", "jetty-http", "9.9.999")  # A4 哨兵:必须 404
+
+# 🔴 「默认路径」条件 —— 只对纯版本号判不出的那条线用(19203 的 12.1 线默认 RFC9110 不受影响)。
+#    key = (cve, line);value = 一句话条件。别的线为空 = 默认路径中招。
+#    由来:19203 advisory 原文实测 —— 12.0.36 默认中招(Responses: 2);12.1.x 因 PR 12564 默认 RFC9110
+#    不允许 LF,只有配 RFC7230/RFC2616 才中(此时最新的 12.1.11 也中,升 12.1.12)。
+ROW_CONDITIONS = {
+    ("CVE-2026-19203", "12.1"): "默认 RFC9110 合规模式不受影响;仅当显式配置 RFC7230 / RFC2616 时命中(此时升 12.1.12)",
+}
 
 
 def get(url, timeout=60):
@@ -69,6 +84,42 @@ def get(url, timeout=60):
 def advisory(cve):
     d = json.load(get("https://api.github.com/advisories?cve_id=" + cve))
     return d[0] if d else None
+
+
+_repo_adv_cache = None
+
+
+def repo_advisory(cve):
+    """仓库级 published advisory 按 cve_id 反查。匿名可读 published 的。
+    ⚠️ 键名与全局 advisory 不同:修复版是 `patched_versions`(可能逗号分隔),不是 `first_patched_version`。"""
+    global _repo_adv_cache
+    if _repo_adv_cache is None:
+        _repo_adv_cache = json.load(get(
+            "https://api.github.com/repos/%s/security-advisories?per_page=100" % REPO_ADVISORY_SRC))
+    for a in _repo_adv_cache:
+        if a.get("cve_id") == cve:
+            return a
+    return None
+
+
+def vulns_of(cve, a_global):
+    """统一取一条 CVE 的受影响项,归一成 [{pkg, range, fp}]。
+    全局 advisory 的 vulnerabilities 为空时(新发 CVE 常见)回退到仓库级源。"""
+    gv = a_global.get("vulnerabilities") or []
+    if gv:
+        return [{"pkg": (v.get("package") or {}).get("name"),
+                 "range": v.get("vulnerable_version_range") or "",
+                 "fp": v.get("first_patched_version")} for v in gv]
+    ra = repo_advisory(cve)
+    if ra is None:
+        return []
+    out = []
+    for v in ra.get("vulnerabilities") or []:
+        pv = v.get("patched_versions")
+        fp = pv.split(",")[0].strip() if pv else None  # 仓库级偶尔逗号分隔,取第一个
+        out.append({"pkg": (v.get("package") or {}).get("name"),
+                    "range": v.get("vulnerable_version_range") or "", "fp": fp})
+    return out
 
 
 def central_url(group, artifact, version):
@@ -140,21 +191,21 @@ def collect():
             "cvss_v3": cvss.get("cvss_v3", {}).get("score"),
             "cvss_v4": cvss.get("cvss_v4", {}).get("score"),
         }
-        for v in a.get("vulnerabilities", []):
-            pkg = (v.get("package") or {}).get("name")
+        for v in vulns_of(cve, a):
+            pkg = v["pkg"]
             if not pkg or ":" not in pkg:
                 continue
             g, art = split_coord(pkg)
             if not g.startswith("org.eclipse.jetty"):
                 continue
-            rng = v.get("vulnerable_version_range") or ""
-            upper = parse_upper(rng)
+            upper = parse_upper(v["range"])
             if upper is None:
                 continue
-            fp = v.get("first_patched_version")
+            line = line_of(upper)
             rows.append({
                 "cve": cve, "group": g, "artifact": art, "coordinate": pkg,
-                "line": line_of(upper), "vulnUpper": upper, "firstPatched": fp,
+                "line": line, "vulnUpper": upper, "firstPatched": v["fp"],
+                "condition": ROW_CONDITIONS.get((cve, line)),
             })
     return cve_meta, rows
 
@@ -234,12 +285,38 @@ def main():
     need(cve_meta["CVE-2025-11143"]["severity"] == "low", "A7 11143 不再是 low —— 文案「统称高危」的红线要重看")
     need(cve_meta["CVE-2026-6790"]["severity"] == "medium", "A7 6790 不再是 medium")
 
+    # A8 19203(2332 同族续作,本轮新增)—— 全局库 vulns 空,靠仓库级回退,结构逐条钉死
+    r19 = [r for r in rows if r["cve"] == "CVE-2026-19203"]
+    need(r19, "A8 19203 一条 row 都没有 —— 仓库级回退源(REPO_ADVISORY_SRC)可能挂了(全局 advisory vulns 为空)")
+    m19 = cve_meta.get("CVE-2026-19203", {})
+    need(m19.get("severity") == "high", "A8 19203 severity 不再是 high(实际 %s)" % m19.get("severity"))
+    r19_94 = [r for r in r19 if r["coordinate"] == "org.eclipse.jetty:jetty-http" and r["line"] == "9.4"]
+    need(r19_94 and all(r["vulnUpper"] == "9.4.63" for r in r19_94),
+         "A8 19203 jetty-http 9.4 线上界不再是 9.4.63(后台原话搜的就是它;实际 %s)"
+         % [r["vulnUpper"] for r in r19_94])
+    # 老线(9.4/10/11):官方给了修复版但 Central 404(核心信息差);12.x:给了且 200(可升)
+    for r in r19:
+        if r["line"] in ("9.4", "10.0", "11.0"):
+            need(r["firstPatched"] and r["fixOnCentral"] is False,
+                 "A8 19203 %s 线期望「官方给版本号 %s 且 Central 404」,实际 fp=%s central=%s"
+                 % (r["line"], r["firstPatched"], r["firstPatched"], r["fixOnCentral"]))
+        elif r["line"] in ("12.0", "12.1"):
+            need(r["firstPatched"] and r["fixOnCentral"] is True,
+                 "A8 19203 %s 线期望「官方给版本号且 Central 200」,实际 fp=%s central=%s"
+                 % (r["line"], r["firstPatched"], r["fixOnCentral"]))
+    # 12.1 线必须带默认路径 condition;9.4 线必须无(默认就中招)—— 防对默认 RFC9110 的 12.1.x 误报
+    r19_121 = [r for r in r19 if r["line"] == "12.1"]
+    need(r19_121 and all(r.get("condition") for r in r19_121),
+         "A8 19203 12.1 线丢了默认路径 condition —— 会对默认 RFC9110 的 12.1.x 用户误报")
+    need(all(not r.get("condition") for r in r19_94),
+         "A8 19203 9.4 线不该有 condition(它默认就中招)")
+
     if errs:
         print("\n🔴 断言不过,拒绝出表:")
         for e in errs:
             print("   ·", e)
         return 1
-    print("\n✅ 断言全过(A1 阳性 / A2 核心主张 / A3 老线终版 / A4 哨兵 / A5 主打结构 / A6 裂模块 / A7 评级)")
+    print("\n✅ 断言全过(A1 阳性 / A2 核心主张 / A3 老线终版 / A4 哨兵 / A5 主打结构 / A6 裂模块 / A7 评级 / A8 19203)")
 
     if args.dry:
         return 0
@@ -279,9 +356,9 @@ def render(cve_meta, rows):
         else:
             fox = "FixState.UNKNOWN"
         row_src.append(
-            "            new Row(%s, %s, %s, %s, %s, %s)"
+            "            new Row(%s, %s, %s, %s, %s, %s, %s)"
             % (j(r["cve"]), j(r["coordinate"]), j(r["line"]),
-               j(r["vulnUpper"]), j(fp), fox))
+               j(r["vulnUpper"]), j(fp), fox, j(r.get("condition"))))
     return TEMPLATE % {
         "main": MAIN_CVE,
         "cves": ",\n".join(cve_src),
@@ -341,9 +418,12 @@ public final class CveTable {
      * @param vulnUpper    该线受影响区间的上界(闭区间),如 {@code 9.4.59}
      * @param firstPatched advisory 点名的修复版;{@code null} = 官方没给
      * @param fix          修复版可得性三态
+     * @param condition    这条线只在特定配置下才命中时的一句话说明;{@code null} = 默认路径就中招。
+     *                     目前只有 CVE-2026-19203 的 12.1 线用(默认 RFC9110 不受影响)。
      */
     public record Row(String cve, String coordinate, String line,
-                      String vulnUpper, String firstPatched, FixState fix) {
+                      String vulnUpper, String firstPatched, FixState fix,
+                      String condition) {
     }
 
     private static final List<Cve> CVES = List.of(

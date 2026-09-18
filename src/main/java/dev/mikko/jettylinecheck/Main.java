@@ -11,7 +11,7 @@ import java.util.List;
 /**
  * 命令行入口。
  *
- * <p>回答一个问题:<b>你这套 Jetty(或 Spring Boot 带进来的 Jetty),中了 2026 年这五条 CVE 的哪几条,
+ * <p>回答一个问题:<b>你这套 Jetty(或 Spring Boot 带进来的 Jetty),中了 2026 年这六条 CVE 的哪几条,
  * 而官方叫你升的那一版,在 Maven Central 上到底存不存在?</b>
  *
  * <p>最硬的一条:9.4 / 10 / 11 这三条 EOL 老线,官方安全页对多条 CVE 写着
@@ -76,9 +76,9 @@ public final class Main {
         out.println();
         out.println("  选项:");
         out.println("    --utf8    按 UTF-8 输出(Windows 控制台中文乱码时用)");
-        out.println("    --table   只打印五条 CVE × 模块 × 版本线的判定表,不扫描");
+        out.println("    --table   只打印六条 CVE × 模块 × 版本线的判定表,不扫描");
         out.println();
-        out.println("  它覆盖的五条(全是 org.eclipse.jetty 的 reviewed advisory,2026 年):");
+        out.println("  它覆盖的六条(全是 org.eclipse.jetty 的 reviewed advisory,2026 年):");
         for (CveTable.Cve c : CveTable.cves()) {
             out.printf("    %-15s %-8s %s%n", c.id(), c.severity(), c.scoreText());
         }
@@ -116,7 +116,7 @@ public final class Main {
     }
 
     private static void header(PrintStream out) {
-        out.println("jetty-line-check —— 2026 年 Jetty 五条 CVE × 模块 × 版本线");
+        out.println("jetty-line-check —— 2026 年 Jetty 六条 CVE × 模块 × 版本线");
         out.println("  判据:坐标 + 版本线 → 判定表 + Maven Central 真 jar 探测(不靠「有没有某个类」)");
         out.println("  主打:" + CveTable.MAIN_CVE + "(jetty-http chunked 请求走私,受影响面 = server 装机面本身)");
         out.println();
@@ -161,6 +161,9 @@ public final class Main {
                 for (Verdict.Finding f : v.findings()) {
                     out.println("   · " + f.cve().id() + "  [" + f.cve().severity() + " / "
                             + f.cve().scoreText() + "]  受影响到 " + f.vulnUpper());
+                    if (f.conditional()) {
+                        out.println("       " + f.conditionLine());
+                    }
                     out.println("       " + f.fixLine());
                 }
             }
@@ -168,7 +171,7 @@ public final class Main {
         }
 
         if (!untracked.isEmpty()) {
-            out.println("ℹ️ 另扫到 " + untracked.size() + " 个 Jetty 构件,不在这五条 CVE 涉及的模块里(未判定):");
+            out.println("ℹ️ 另扫到 " + untracked.size() + " 个 Jetty 构件,不在这六条 CVE 涉及的模块里(未判定):");
             for (Artifact a : untracked) {
                 out.println("   · " + a.coordinate() + "  "
                         + (a.version() == null ? "(版本未知)" : a.version()));

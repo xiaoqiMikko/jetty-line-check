@@ -6,7 +6,7 @@ import java.util.List;
  * 🔴 本文件由 {@code tools/gen_table.py} 从一手源生成 —— <b>不要手改</b>。
  * 改了下次生成会被覆盖,而且手抄一批版本号正是这个项目要打的那个错。
  *
- * <p>一手源:5 条 GitHub advisory 的 {@code vulnerabilities[]} + Maven Central 真 jar HEAD 探测。
+ * <p>一手源:6 条 GitHub advisory 的 {@code vulnerabilities[]} + Maven Central 真 jar HEAD 探测。
  * 生成时七组断言全过(阳性对照 / 核心主张 / 老线终版 / 哨兵 / 主打结构 / 裂模块 / 评级)。
  *
  * <p><b>判据不是「jar 里有没有某个类」</b>(见 gen_table.py 头注):
@@ -50,13 +50,17 @@ public final class CveTable {
      * @param vulnUpper    该线受影响区间的上界(闭区间),如 {@code 9.4.59}
      * @param firstPatched advisory 点名的修复版;{@code null} = 官方没给
      * @param fix          修复版可得性三态
+     * @param condition    这条线只在特定配置下才命中时的一句话说明;{@code null} = 默认路径就中招。
+     *                     目前只有 CVE-2026-19203 的 12.1 线用(默认 RFC9110 不受影响)。
      */
     public record Row(String cve, String coordinate, String line,
-                      String vulnUpper, String firstPatched, FixState fix) {
+                      String vulnUpper, String firstPatched, FixState fix,
+                      String condition) {
     }
 
     private static final List<Cve> CVES = List.of(
             new Cve("CVE-2026-2332", "GHSA-355h-qmc2-wpwf", "high", 7.4, 0.0),
+            new Cve("CVE-2026-19203", "GHSA-p2j5-5566-vpv9", "high", 0.0, 8.3),
             new Cve("CVE-2026-5795", "GHSA-r7p8-xq5m-436c", "high", 7.4, 0.0),
             new Cve("CVE-2026-6790", "GHSA-7p3p-8qv8-m2vh", "medium", 5.3, 0.0),
             new Cve("CVE-2026-10050", "GHSA-2fvj-hgj9-j2gr", "high", 0.0, 8.7),
@@ -64,41 +68,46 @@ public final class CveTable {
     );
 
     private static final List<Row> ROWS = List.of(
-            new Row("CVE-2026-5795", "org.eclipse.jetty.ee10:jetty-ee10-jaspi", "12.0", "12.0.33", "12.0.34", FixState.PUBLIC),
-            new Row("CVE-2026-5795", "org.eclipse.jetty.ee10:jetty-ee10-jaspi", "12.1", "12.1.7", "12.1.8", FixState.PUBLIC),
-            new Row("CVE-2026-5795", "org.eclipse.jetty.ee11:jetty-ee11-jaspi", "12.0", "12.0.33", "12.0.34", FixState.CENTRAL_404),
-            new Row("CVE-2026-5795", "org.eclipse.jetty.ee11:jetty-ee11-jaspi", "12.1", "12.1.7", "12.1.8", FixState.PUBLIC),
-            new Row("CVE-2026-5795", "org.eclipse.jetty.ee8:jetty-ee8-jaspi", "12.0", "12.0.33", "12.0.34", FixState.PUBLIC),
-            new Row("CVE-2026-5795", "org.eclipse.jetty.ee8:jetty-ee8-jaspi", "12.1", "12.1.7", "12.1.8", FixState.PUBLIC),
-            new Row("CVE-2026-10050", "org.eclipse.jetty.ee8:jetty-ee8-security", "12.0", "12.0.35", "12.0.36", FixState.PUBLIC),
-            new Row("CVE-2026-10050", "org.eclipse.jetty.ee8:jetty-ee8-security", "12.1", "12.1.9", "12.1.10", FixState.PUBLIC),
-            new Row("CVE-2026-5795", "org.eclipse.jetty.ee9:jetty-ee9-jaspi", "12.0", "12.0.33", "12.0.34", FixState.PUBLIC),
-            new Row("CVE-2026-5795", "org.eclipse.jetty.ee9:jetty-ee9-jaspi", "12.1", "12.1.7", "12.1.8", FixState.PUBLIC),
-            new Row("CVE-2026-10050", "org.eclipse.jetty.ee9:jetty-ee9-security", "12.0", "12.0.35", "12.0.36", FixState.PUBLIC),
-            new Row("CVE-2026-10050", "org.eclipse.jetty.ee9:jetty-ee9-security", "12.1", "12.1.9", "12.1.10", FixState.PUBLIC),
-            new Row("CVE-2025-11143", "org.eclipse.jetty:jetty-http", "10.0", "10.0.26", null, FixState.NO_VERSION_GIVEN),
-            new Row("CVE-2026-2332", "org.eclipse.jetty:jetty-http", "10.0", "10.0.27", "10.0.28", FixState.CENTRAL_404),
-            new Row("CVE-2025-11143", "org.eclipse.jetty:jetty-http", "11.0", "11.0.26", null, FixState.NO_VERSION_GIVEN),
-            new Row("CVE-2026-2332", "org.eclipse.jetty:jetty-http", "11.0", "11.0.28", "11.0.29", FixState.CENTRAL_404),
-            new Row("CVE-2025-11143", "org.eclipse.jetty:jetty-http", "12.0", "12.0.30", "12.0.31", FixState.PUBLIC),
-            new Row("CVE-2026-2332", "org.eclipse.jetty:jetty-http", "12.0", "12.0.32", "12.0.33", FixState.PUBLIC),
-            new Row("CVE-2025-11143", "org.eclipse.jetty:jetty-http", "12.1", "12.1.4", "12.1.5", FixState.PUBLIC),
-            new Row("CVE-2026-2332", "org.eclipse.jetty:jetty-http", "12.1", "12.1.6", "12.1.7", FixState.PUBLIC),
-            new Row("CVE-2025-11143", "org.eclipse.jetty:jetty-http", "9.4", "9.4.58", null, FixState.NO_VERSION_GIVEN),
-            new Row("CVE-2026-2332", "org.eclipse.jetty:jetty-http", "9.4", "9.4.59", "9.4.60", FixState.CENTRAL_404),
-            new Row("CVE-2026-5795", "org.eclipse.jetty:jetty-jaspi", "10.0", "10.0.28", "10.0.29", FixState.CENTRAL_404),
-            new Row("CVE-2026-5795", "org.eclipse.jetty:jetty-jaspi", "11.0", "11.0.28", "11.0.29", FixState.CENTRAL_404),
-            new Row("CVE-2026-5795", "org.eclipse.jetty:jetty-jaspi", "9.4", "9.4.60", "9.4.61", FixState.CENTRAL_404),
-            new Row("CVE-2026-10050", "org.eclipse.jetty:jetty-security", "10.0", "10.0.26", "10.0.31", FixState.CENTRAL_404),
-            new Row("CVE-2026-10050", "org.eclipse.jetty:jetty-security", "11.0", "11.0.26", "11.0.31", FixState.CENTRAL_404),
-            new Row("CVE-2026-10050", "org.eclipse.jetty:jetty-security", "12.0", "12.0.35", "12.0.36", FixState.PUBLIC),
-            new Row("CVE-2026-10050", "org.eclipse.jetty:jetty-security", "12.1", "12.1.9", "12.1.10", FixState.PUBLIC),
-            new Row("CVE-2026-10050", "org.eclipse.jetty:jetty-security", "9.4", "9.4.58.v20250814", "9.4.63", FixState.CENTRAL_404),
-            new Row("CVE-2026-6790", "org.eclipse.jetty:jetty-server", "10.0", "10.0.26", null, FixState.NO_VERSION_GIVEN),
-            new Row("CVE-2026-6790", "org.eclipse.jetty:jetty-server", "11.0", "11.0.26", null, FixState.NO_VERSION_GIVEN),
-            new Row("CVE-2026-6790", "org.eclipse.jetty:jetty-server", "12.0", "12.0.34", "12.0.35", FixState.PUBLIC),
-            new Row("CVE-2026-6790", "org.eclipse.jetty:jetty-server", "12.1", "12.1.8", "12.1.9", FixState.PUBLIC),
-            new Row("CVE-2026-6790", "org.eclipse.jetty:jetty-server", "9.4", "9.4.58.v20250814", null, FixState.NO_VERSION_GIVEN)
+            new Row("CVE-2026-5795", "org.eclipse.jetty.ee10:jetty-ee10-jaspi", "12.0", "12.0.33", "12.0.34", FixState.PUBLIC, null),
+            new Row("CVE-2026-5795", "org.eclipse.jetty.ee10:jetty-ee10-jaspi", "12.1", "12.1.7", "12.1.8", FixState.PUBLIC, null),
+            new Row("CVE-2026-5795", "org.eclipse.jetty.ee11:jetty-ee11-jaspi", "12.0", "12.0.33", "12.0.34", FixState.CENTRAL_404, null),
+            new Row("CVE-2026-5795", "org.eclipse.jetty.ee11:jetty-ee11-jaspi", "12.1", "12.1.7", "12.1.8", FixState.PUBLIC, null),
+            new Row("CVE-2026-5795", "org.eclipse.jetty.ee8:jetty-ee8-jaspi", "12.0", "12.0.33", "12.0.34", FixState.PUBLIC, null),
+            new Row("CVE-2026-5795", "org.eclipse.jetty.ee8:jetty-ee8-jaspi", "12.1", "12.1.7", "12.1.8", FixState.PUBLIC, null),
+            new Row("CVE-2026-10050", "org.eclipse.jetty.ee8:jetty-ee8-security", "12.0", "12.0.35", "12.0.36", FixState.PUBLIC, null),
+            new Row("CVE-2026-10050", "org.eclipse.jetty.ee8:jetty-ee8-security", "12.1", "12.1.9", "12.1.10", FixState.PUBLIC, null),
+            new Row("CVE-2026-5795", "org.eclipse.jetty.ee9:jetty-ee9-jaspi", "12.0", "12.0.33", "12.0.34", FixState.PUBLIC, null),
+            new Row("CVE-2026-5795", "org.eclipse.jetty.ee9:jetty-ee9-jaspi", "12.1", "12.1.7", "12.1.8", FixState.PUBLIC, null),
+            new Row("CVE-2026-10050", "org.eclipse.jetty.ee9:jetty-ee9-security", "12.0", "12.0.35", "12.0.36", FixState.PUBLIC, null),
+            new Row("CVE-2026-10050", "org.eclipse.jetty.ee9:jetty-ee9-security", "12.1", "12.1.9", "12.1.10", FixState.PUBLIC, null),
+            new Row("CVE-2025-11143", "org.eclipse.jetty:jetty-http", "10.0", "10.0.26", null, FixState.NO_VERSION_GIVEN, null),
+            new Row("CVE-2026-19203", "org.eclipse.jetty:jetty-http", "10.0", "10.0.31", "10.0.32", FixState.CENTRAL_404, null),
+            new Row("CVE-2026-2332", "org.eclipse.jetty:jetty-http", "10.0", "10.0.27", "10.0.28", FixState.CENTRAL_404, null),
+            new Row("CVE-2025-11143", "org.eclipse.jetty:jetty-http", "11.0", "11.0.26", null, FixState.NO_VERSION_GIVEN, null),
+            new Row("CVE-2026-19203", "org.eclipse.jetty:jetty-http", "11.0", "11.0.31", "11.0.32", FixState.CENTRAL_404, null),
+            new Row("CVE-2026-2332", "org.eclipse.jetty:jetty-http", "11.0", "11.0.28", "11.0.29", FixState.CENTRAL_404, null),
+            new Row("CVE-2025-11143", "org.eclipse.jetty:jetty-http", "12.0", "12.0.30", "12.0.31", FixState.PUBLIC, null),
+            new Row("CVE-2026-19203", "org.eclipse.jetty:jetty-http", "12.0", "12.0.37", "12.0.38", FixState.PUBLIC, null),
+            new Row("CVE-2026-2332", "org.eclipse.jetty:jetty-http", "12.0", "12.0.32", "12.0.33", FixState.PUBLIC, null),
+            new Row("CVE-2025-11143", "org.eclipse.jetty:jetty-http", "12.1", "12.1.4", "12.1.5", FixState.PUBLIC, null),
+            new Row("CVE-2026-19203", "org.eclipse.jetty:jetty-http", "12.1", "12.1.11", "12.1.12", FixState.PUBLIC, "默认 RFC9110 合规模式不受影响;仅当显式配置 RFC7230 / RFC2616 时命中(此时升 12.1.12)"),
+            new Row("CVE-2026-2332", "org.eclipse.jetty:jetty-http", "12.1", "12.1.6", "12.1.7", FixState.PUBLIC, null),
+            new Row("CVE-2025-11143", "org.eclipse.jetty:jetty-http", "9.4", "9.4.58", null, FixState.NO_VERSION_GIVEN, null),
+            new Row("CVE-2026-19203", "org.eclipse.jetty:jetty-http", "9.4", "9.4.63", "9.4.64", FixState.CENTRAL_404, null),
+            new Row("CVE-2026-2332", "org.eclipse.jetty:jetty-http", "9.4", "9.4.59", "9.4.60", FixState.CENTRAL_404, null),
+            new Row("CVE-2026-5795", "org.eclipse.jetty:jetty-jaspi", "10.0", "10.0.28", "10.0.29", FixState.CENTRAL_404, null),
+            new Row("CVE-2026-5795", "org.eclipse.jetty:jetty-jaspi", "11.0", "11.0.28", "11.0.29", FixState.CENTRAL_404, null),
+            new Row("CVE-2026-5795", "org.eclipse.jetty:jetty-jaspi", "9.4", "9.4.60", "9.4.61", FixState.CENTRAL_404, null),
+            new Row("CVE-2026-10050", "org.eclipse.jetty:jetty-security", "10.0", "10.0.26", "10.0.31", FixState.CENTRAL_404, null),
+            new Row("CVE-2026-10050", "org.eclipse.jetty:jetty-security", "11.0", "11.0.26", "11.0.31", FixState.CENTRAL_404, null),
+            new Row("CVE-2026-10050", "org.eclipse.jetty:jetty-security", "12.0", "12.0.35", "12.0.36", FixState.PUBLIC, null),
+            new Row("CVE-2026-10050", "org.eclipse.jetty:jetty-security", "12.1", "12.1.9", "12.1.10", FixState.PUBLIC, null),
+            new Row("CVE-2026-10050", "org.eclipse.jetty:jetty-security", "9.4", "9.4.58.v20250814", "9.4.63", FixState.CENTRAL_404, null),
+            new Row("CVE-2026-6790", "org.eclipse.jetty:jetty-server", "10.0", "10.0.26", null, FixState.NO_VERSION_GIVEN, null),
+            new Row("CVE-2026-6790", "org.eclipse.jetty:jetty-server", "11.0", "11.0.26", null, FixState.NO_VERSION_GIVEN, null),
+            new Row("CVE-2026-6790", "org.eclipse.jetty:jetty-server", "12.0", "12.0.34", "12.0.35", FixState.PUBLIC, null),
+            new Row("CVE-2026-6790", "org.eclipse.jetty:jetty-server", "12.1", "12.1.8", "12.1.9", FixState.PUBLIC, null),
+            new Row("CVE-2026-6790", "org.eclipse.jetty:jetty-server", "9.4", "9.4.58.v20250814", null, FixState.NO_VERSION_GIVEN, null)
     );
 
     public static List<Cve> cves() {

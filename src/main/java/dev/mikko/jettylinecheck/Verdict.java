@@ -25,13 +25,24 @@ public final class Verdict {
         CLEAN,
         /** 坐标在判定表里,但版本号读不出来 —— 给不了线级结论。 */
         UNKNOWN_VERSION,
-        /** 是 Jetty 构件,但坐标不在我们覆盖的 5 条 CVE 涉及的模块里。 */
+        /** 是 Jetty 构件,但坐标不在我们覆盖的 6 条 CVE 涉及的模块里。 */
         NOT_TRACKED
     }
 
     /** 对某一条 CVE 的判定。 */
     public record Finding(CveTable.Cve cve, boolean affected,
-                          CveTable.FixState fix, String firstPatched, String vulnUpper) {
+                          CveTable.FixState fix, String firstPatched, String vulnUpper,
+                          String condition) {
+
+        /** 这条线是否只在特定配置下才命中(如 19203 的 12.1 线,默认 RFC9110 不受影响)。 */
+        public boolean conditional() {
+            return condition != null && !condition.isBlank();
+        }
+
+        /** 命中前提的一句话 —— 仅当 {@link #conditional()} 时有意义。防对默认配置用户误报。 */
+        public String conditionLine() {
+            return "⚠️ 前提:" + condition;
+        }
 
         /** 修复版可得性的一句话。 */
         public String fixLine() {
@@ -90,7 +101,7 @@ public final class Verdict {
             boolean affected = upper != null && vk.lteq(upper);
             if (affected) {
                 findings.add(new Finding(CveTable.cveById(r.cve()), true,
-                        r.fix(), r.firstPatched(), r.vulnUpper()));
+                        r.fix(), r.firstPatched(), r.vulnUpper(), r.condition()));
             }
         }
         return new Verdict(a, findings.isEmpty() ? Kind.CLEAN : Kind.HIT, findings);

@@ -6,11 +6,11 @@
 
   <groupId>dev.mikko</groupId>
   <artifactId>jetty-line-check</artifactId>
-  <version>0.1.0</version>
+  <version>0.2.0</version>
   <packaging>jar</packaging>
 
   <name>jetty-line-check</name>
-  <description>CVE-2026-2332 and four more 2026 Jetty CVEs: which of them does your Jetty build actually hit, and does the fixed version Jetty points you to even exist on Maven Central?</description>
+  <description>CVE-2026-2332 and five more 2026 Jetty CVEs: which of them does your Jetty build actually hit, and does the fixed version Jetty points you to even exist on Maven Central?</description>
 
   <!--
     ⚠️ 本机 Maven 3.5.4(2018 年)卡死了插件版本 —— 抄 tomcat-line-check:
